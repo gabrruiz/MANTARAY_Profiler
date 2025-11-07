@@ -1,0 +1,82 @@
+/ Combined Industrial pH + Temperature Sensor Code
+// Atlas Scientific EZO circuits using UART
+// pH on Serial3, RTD (temperature) on Serial2
+// Written for Arduino Mega 2560 or similar boards
+
+String inputstring = "";
+String sensorstring_ph = "";
+String sensorstring_temp = "";
+float pH = 0.0;
+float temperature = 0.0;
+
+unsigned long lastRequest = 0;
+const unsigned long interval = 3000;  // 3 seconds between readings
+
+void setup() {
+  Serial.begin(9600);   // USB Serial for monitor
+  Serial2.begin(9600);  // RTD (Temperature)
+  Serial3.begin(9600);  // pH sensor
+
+  inputstring.reserve(10);
+  sensorstring_ph.reserve(30);
+  sensorstring_temp.reserve(30);
+
+  Serial.println("Atlas Scientific pH + Temperature Interface");
+  Serial.println("---------------------------------------------------");
+  Serial.println("pH on Serial3, RTD on Serial2");
+  Serial.println();
+}
+
+void loop() {
+  // --- Manual Command Passthrough ---
+  if (Serial.available()) {
+    inputstring = Serial.readStringUntil('\r');
+    inputstring.trim();
+
+    if (inputstring.startsWith("PH")) {
+      Serial3.print("R\r");  // manual read pH
+    } 
+    else if (inputstring.startsWith("RTD")) {
+      Serial2.print("R\r");  // manual read temperature
+    } 
+    else {
+      Serial.println("Commands:");
+      Serial.println("  Type 'PH' for pH reading");
+      Serial.println("  Type 'RTD' for temperature reading");
+    }
+    inputstring = "";
+  }
+
+  // --- Automatic alternating reads ---
+  if (millis() - lastRequest > interval) {
+    Serial3.print("R\r");  // request pH
+    Serial2.print("R\r");  // request temperature
+    lastRequest = millis();
+  }
+
+  // --- Read pH response ---
+  if (Serial3.available()) {
+    sensorstring_ph = Serial3.readStringUntil('\r');
+    sensorstring_ph.trim();
+
+    if (sensorstring_ph.length() > 0 && isdigit(sensorstring_ph[0])) {
+      pH = sensorstring_ph.toFloat();
+      Serial.print("pH: ");
+      Serial.println(pH);
+    }
+    sensorstring_ph = "";
+  }
+
+  // --- Read temperature response ---
+  if (Serial2.available()) {
+    sensorstring_temp = Serial2.readStringUntil('\r');
+    sensorstring_temp.trim();
+
+    if (sensorstring_temp.length() > 0 && (isdigit(sensorstring_temp[0]) || sensorstring_temp[0] == '-')) {
+      temperature = sensorstring_temp.toFloat();
+      Serial.print("Temp (°C): ");
+      Serial.println(temperature);
+    }
+    sensorstring_temp = "";
+  }
+}
