@@ -1,0 +1,29 @@
+byte indicatorPin = 10;
+byte indicatorPin1 = 11;
+byte indicatorPin2= 12;
+
+
+void setup() {
+	// set up pin mode
+pinMode(indicatorPin,OUTPUT);
+pinMode(indicatorPin1,OUTPUT);
+pinMode(indicatorPin2,OUTPUT);
+}
+
+void loop() {
+  // turn light on
+  digitalWrite(indicatorPin,HIGH);
+  digitalWrite(indicatorPin1,HIGH);
+  digitalWrite(indicatorPin2,HIGH);
+
+  // wait one second
+  delay(1000);
+
+  // turn light off</p>
+  digitalWrite(indicatorPin,LOW);
+  digitalWrite(indicatorPin1,LOW);
+  digitalWrite(indicatorPin2,LOW);
+
+  // wait one second
+  delay(1000);
+}
