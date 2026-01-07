@@ -1,3 +1,4 @@
+//note that if wanting to control the diming you need to have them in pwm pins
 byte indicatorPin = 10;
 byte indicatorPin1 = 11;
 byte indicatorPin2= 12;
