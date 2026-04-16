@@ -1,18 +1,20 @@
 #include <SoftwareSerial.h>
 
-// Serial1 = EC
-// Serial2 = RTD temp
-// Serial3 = pH
+// Bench mapping:
+// Temp -> Serial1  (TX1=18, RX1=19)
+// DO   -> Serial2  (TX2=16, RX2=17)
+// pH   -> Serial3  (TX3=14, RX3=15)
+// EC   -> SoftwareSerial (RX=10, TX=11)
+// Leak -> pin 53
 
-SoftwareSerial doSerial(10, 11);  // RX, TX
+SoftwareSerial ecSerial(10, 11); // Arduino RX, TX
 
-const int leakPin = 2;
+const int leakPin = 53;
 const int ledPin  = 13;
 
 unsigned long lastRead = 0;
 const unsigned long interval = 3000;
 
-// latest readings
 float phValue = 0.0;
 float tempValue = 0.0;
 float ecValue = 0.0;
@@ -73,6 +75,17 @@ void parseTemp(String msg) {
   }
 }
 
+void parseDO(String msg) {
+  msg.trim();
+  if (isNumericStart(msg)) {
+    doValue = msg.toFloat();
+    doValid = true;
+  } else {
+    Serial.print("DO status: ");
+    Serial.println(msg);
+  }
+}
+
 void parseEC(String msg) {
   msg.trim();
   if (!isNumericStart(msg)) {
@@ -97,22 +110,11 @@ void parseEC(String msg) {
   ecValid = true;
 }
 
-void parseDO(String msg) {
-  msg.trim();
-  if (isNumericStart(msg)) {
-    doValue = msg.toFloat();
-    doValid = true;
-  } else {
-    Serial.print("DO status: ");
-    Serial.println(msg);
-  }
-}
-
 void requestAllSensors() {
-  Serial1.print("R\r");   // EC
-  Serial2.print("R\r");   // Temp
+  Serial1.print("R\r");   // Temp
+  Serial2.print("R\r");   // DO
   Serial3.print("R\r");   // pH
-  doSerial.print("R\r");  // DO
+  ecSerial.print("R\r");  // EC
 }
 
 void printReadings() {
@@ -127,6 +129,10 @@ void printReadings() {
 
   Serial.print("Temp (C): ");
   if (tempValid) Serial.println(tempValue, 2);
+  else Serial.println("NA");
+
+  Serial.print("DO: ");
+  if (doValid) Serial.println(doValue, 2);
   else Serial.println("NA");
 
   Serial.print("EC: ");
@@ -145,10 +151,6 @@ void printReadings() {
   if (ecValid) Serial.println(gravValue, 3);
   else Serial.println("NA");
 
-  Serial.print("DO: ");
-  if (doValid) Serial.println(doValue, 2);
-  else Serial.println("NA");
-
   Serial.print("Leak: ");
   if (leak) Serial.println("DETECTED");
   else Serial.println("Dry");
@@ -160,11 +162,11 @@ void setup() {
   pinMode(leakPin, INPUT);
   pinMode(ledPin, OUTPUT);
 
-  Serial.begin(115200);
-  Serial1.begin(9600);   // For EC
-  Serial2.begin(9600);   // For Temp
-  Serial3.begin(9600);   // For pH
-  doSerial.begin(9600);  // For DO
+  Serial.begin(115200);   // USB monitor
+  Serial1.begin(9600);    // Temp
+  Serial2.begin(9600);    // DO
+  Serial3.begin(9600);    // pH
+  ecSerial.begin(9600);   // EC
 
   Serial.println("Starting the becnh");
   delay(1000);
@@ -175,9 +177,9 @@ void setup() {
 
 void loop() {
   servicePort(Serial3, phBuffer, parsePH);
-  servicePort(Serial2, tempBuffer, parseTemp);
-  servicePort(Serial1, ecBuffer, parseEC);
-  servicePort(doSerial, doBuffer, parseDO);
+  servicePort(Serial1, tempBuffer, parseTemp);
+  servicePort(Serial2, doBuffer, parseDO);
+  servicePort(ecSerial, ecBuffer, parseEC);
 
   if (millis() - lastRead >= interval) {
     printReadings();
