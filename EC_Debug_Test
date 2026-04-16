@@ -1,0 +1,21 @@
+#include <SoftwareSerial.h>
+SoftwareSerial ecSerial(10, 11); // Arduino RX, TX
+
+void setup() {
+  Serial.begin(115200);
+  ecSerial.begin(9600);
+  Serial.println("Type EC commands like I, O,?, K,?, Cal,?, R");
+}
+
+void loop() {
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    ecSerial.print(cmd);
+    ecSerial.print('\r');
+  }
+
+  while (ecSerial.available()) {
+    Serial.write(ecSerial.read());
+  }
+}
