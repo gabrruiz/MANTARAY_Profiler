@@ -1,0 +1,187 @@
+#include <SoftwareSerial.h>
+
+// Serial1 = EC
+// Serial2 = RTD temp
+// Serial3 = pH
+
+SoftwareSerial doSerial(10, 11);  // RX, TX
+
+const int leakPin = 2;
+const int ledPin  = 13;
+
+unsigned long lastRead = 0;
+const unsigned long interval = 3000;
+
+// latest readings
+float phValue = 0.0;
+float tempValue = 0.0;
+float ecValue = 0.0;
+float tdsValue = 0.0;
+float salValue = 0.0;
+float gravValue = 0.0;
+float doValue = 0.0;
+
+bool phValid = false;
+bool tempValid = false;
+bool ecValid = false;
+bool doValid = false;
+
+String phBuffer = "";
+String tempBuffer = "";
+String ecBuffer = "";
+String doBuffer = "";
+
+bool isNumericStart(const String &s) {
+  if (s.length() == 0) return false;
+  char c = s[0];
+  return isDigit(c) || c == '-' || c == '.';
+}
+
+void servicePort(Stream &port, String &buffer, void (*parser)(String)) {
+  while (port.available()) {
+    char c = port.read();
+    if (c == '\r' || c == '\n') {
+      if (buffer.length() > 0) {
+        parser(buffer);
+        buffer = "";
+      }
+    } else {
+      buffer += c;
+    }
+  }
+}
+
+void parsePH(String msg) {
+  msg.trim();
+  if (isNumericStart(msg)) {
+    phValue = msg.toFloat();
+    phValid = true;
+  } else {
+    Serial.print("pH status: ");
+    Serial.println(msg);
+  }
+}
+
+void parseTemp(String msg) {
+  msg.trim();
+  if (isNumericStart(msg)) {
+    tempValue = msg.toFloat();
+    tempValid = true;
+  } else {
+    Serial.print("Temp status: ");
+    Serial.println(msg);
+  }
+}
+
+void parseEC(String msg) {
+  msg.trim();
+  if (!isNumericStart(msg)) {
+    Serial.print("EC status: ");
+    Serial.println(msg);
+    return;
+  }
+
+  char buf[40];
+  msg.toCharArray(buf, sizeof(buf));
+
+  char *EC   = strtok(buf, ",");
+  char *TDS  = strtok(NULL, ",");
+  char *SAL  = strtok(NULL, ",");
+  char *GRAV = strtok(NULL, ",");
+
+  if (EC)   ecValue   = atof(EC);
+  if (TDS)  tdsValue  = atof(TDS);
+  if (SAL)  salValue  = atof(SAL);
+  if (GRAV) gravValue = atof(GRAV);
+
+  ecValid = true;
+}
+
+void parseDO(String msg) {
+  msg.trim();
+  if (isNumericStart(msg)) {
+    doValue = msg.toFloat();
+    doValid = true;
+  } else {
+    Serial.print("DO status: ");
+    Serial.println(msg);
+  }
+}
+
+void requestAllSensors() {
+  Serial1.print("R\r");   // EC
+  Serial2.print("R\r");   // Temp
+  Serial3.print("R\r");   // pH
+  doSerial.print("R\r");  // DO
+}
+
+void printReadings() {
+  int leak = digitalRead(leakPin);
+  digitalWrite(ledPin, leak);
+
+  Serial.println("-------------------------- Bench  Readings :) --------------------------");
+
+  Serial.print("pH: ");
+  if (phValid) Serial.println(phValue, 2);
+  else Serial.println("NA");
+
+  Serial.print("Temp (C): ");
+  if (tempValid) Serial.println(tempValue, 2);
+  else Serial.println("NA");
+
+  Serial.print("EC: ");
+  if (ecValid) Serial.println(ecValue, 2);
+  else Serial.println("NA");
+
+  Serial.print("TDS: ");
+  if (ecValid) Serial.println(tdsValue, 2);
+  else Serial.println("NA");
+
+  Serial.print("SAL: ");
+  if (ecValid) Serial.println(salValue, 2);
+  else Serial.println("NA");
+
+  Serial.print("GRAV: ");
+  if (ecValid) Serial.println(gravValue, 3);
+  else Serial.println("NA");
+
+  Serial.print("DO: ");
+  if (doValid) Serial.println(doValue, 2);
+  else Serial.println("NA");
+
+  Serial.print("Leak: ");
+  if (leak) Serial.println("DETECTED");
+  else Serial.println("Dry");
+
+  Serial.println();
+}
+
+void setup() {
+  pinMode(leakPin, INPUT);
+  pinMode(ledPin, OUTPUT);
+
+  Serial.begin(115200);
+  Serial1.begin(9600);   // For EC
+  Serial2.begin(9600);   // For Temp
+  Serial3.begin(9600);   // For pH
+  doSerial.begin(9600);  // For DO
+
+  Serial.println("Starting the becnh");
+  delay(1000);
+
+  requestAllSensors();
+  lastRead = millis();
+}
+
+void loop() {
+  servicePort(Serial3, phBuffer, parsePH);
+  servicePort(Serial2, tempBuffer, parseTemp);
+  servicePort(Serial1, ecBuffer, parseEC);
+  servicePort(doSerial, doBuffer, parseDO);
+
+  if (millis() - lastRead >= interval) {
+    printReadings();
+    requestAllSensors();
+    lastRead = millis();
+  }
+}
