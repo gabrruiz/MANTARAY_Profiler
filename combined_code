@@ -12,8 +12,10 @@ SoftwareSerial ecSerial(10, 11); // Arduino RX, TX
 const int leakPin = 53;
 const int ledPin  = 13;
 
-unsigned long lastRead = 0;
+unsigned long lastRequest = 0;
 const unsigned long interval = 3000;
+const unsigned long responseDelay = 1200; // give sensors time to answer
+bool waitingForResponses = false;
 
 float phValue = 0.0;
 float tempValue = 0.0;
@@ -39,6 +41,12 @@ bool isNumericStart(const String &s) {
   return isDigit(c) || c == '-' || c == '.';
 }
 
+void clearPort(Stream &port) {
+  while (port.available()) {
+    port.read();
+  }
+}
+
 void servicePort(Stream &port, String &buffer, void (*parser)(String)) {
   while (port.available()) {
     char c = port.read();
@@ -55,6 +63,9 @@ void servicePort(Stream &port, String &buffer, void (*parser)(String)) {
 
 void parsePH(String msg) {
   msg.trim();
+  Serial.print("[RAW pH] ");
+  Serial.println(msg);
+
   if (isNumericStart(msg)) {
     phValue = msg.toFloat();
     phValid = true;
@@ -66,6 +77,9 @@ void parsePH(String msg) {
 
 void parseTemp(String msg) {
   msg.trim();
+  Serial.print("[RAW Temp] ");
+  Serial.println(msg);
+
   if (isNumericStart(msg)) {
     tempValue = msg.toFloat();
     tempValid = true;
@@ -77,6 +91,9 @@ void parseTemp(String msg) {
 
 void parseDO(String msg) {
   msg.trim();
+  Serial.print("[RAW DO] ");
+  Serial.println(msg);
+
   if (isNumericStart(msg)) {
     doValue = msg.toFloat();
     doValid = true;
@@ -88,6 +105,9 @@ void parseDO(String msg) {
 
 void parseEC(String msg) {
   msg.trim();
+  Serial.print("[RAW EC] ");
+  Serial.println(msg);
+
   if (!isNumericStart(msg)) {
     Serial.print("EC status: ");
     Serial.println(msg);
@@ -111,17 +131,33 @@ void parseEC(String msg) {
 }
 
 void requestAllSensors() {
+  // clear old junk before new request
+  clearPort(Serial1);
+  clearPort(Serial2);
+  clearPort(Serial3);
+  clearPort(ecSerial);
+
+  phBuffer = "";
+  tempBuffer = "";
+  ecBuffer = "";
+  doBuffer = "";
+
+  Serial.println("Sending R to all sensors...");
+
   Serial1.print("R\r");   // Temp
   Serial2.print("R\r");   // DO
   Serial3.print("R\r");   // pH
   ecSerial.print("R\r");  // EC
+
+  lastRequest = millis();
+  waitingForResponses = true;
 }
 
 void printReadings() {
   int leak = digitalRead(leakPin);
   digitalWrite(ledPin, leak);
 
-  Serial.println("-------------------------- Bench  Readings :) --------------------------");
+  Serial.println("-------------------------- Bench Readings --------------------------");
 
   Serial.print("pH: ");
   if (phValid) Serial.println(phValue, 2);
@@ -162,17 +198,16 @@ void setup() {
   pinMode(leakPin, INPUT);
   pinMode(ledPin, OUTPUT);
 
-  Serial.begin(115200);   // USB monitor
-  Serial1.begin(9600);    // Temp
-  Serial2.begin(9600);    // DO
-  Serial3.begin(9600);    // pH
-  ecSerial.begin(9600);   // EC
+  Serial.begin(115200);
+  Serial1.begin(9600);   // Temp
+  Serial2.begin(9600);   // DO
+  Serial3.begin(9600);   // pH
+  ecSerial.begin(9600);  // EC
 
   Serial.println("Starting the becnh");
-  delay(1000);
+  delay(1500);
 
   requestAllSensors();
-  lastRead = millis();
 }
 
 void loop() {
@@ -181,9 +216,12 @@ void loop() {
   servicePort(Serial2, doBuffer, parseDO);
   servicePort(ecSerial, ecBuffer, parseEC);
 
-  if (millis() - lastRead >= interval) {
+  if (waitingForResponses && millis() - lastRequest >= responseDelay) {
     printReadings();
+    waitingForResponses = false;
+  }
+
+  if (!waitingForResponses && millis() - lastRequest >= interval) {
     requestAllSensors();
-    lastRead = millis();
   }
 }
