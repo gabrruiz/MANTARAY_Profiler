@@ -1,0 +1,35 @@
+#include <Wire.h>
+#include "MS5837.h"
+
+MS5837 sensor;
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+
+  if (!sensor.init()) {
+    Serial.println("Sensor failed to initialize!");
+    while (1);
+  }
+
+  // Bar02 model
+  sensor.setModel(MS5837::MS5837_02BA);
+
+  // Water density (freshwater)
+  sensor.setFluidDensity(997);
+
+  Serial.println("Depth sensor ready");
+}
+
+void loop() {
+
+  sensor.read();
+
+  float depth = sensor.depth();
+
+  Serial.print("Depth: ");
+  Serial.print(depth);
+  Serial.println(" m");
+
+  delay(200);
+}
