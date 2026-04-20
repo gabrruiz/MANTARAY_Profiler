@@ -5,11 +5,11 @@
 // DO   -> Serial2  (TX2=16, RX2=17)
 // pH   -> Serial3  (TX3=14, RX3=15)
 // EC   -> SoftwareSerial (RX=10, TX=11)
-// Leak -> pin 53
+// Leak -> pin 4
 
 SoftwareSerial ecSerial(10, 11); // Arduino RX, TX
 
-const int leakPin = 53;
+const int leakPin = 4;
 const int ledPin  = 13;
 
 unsigned long lastRequest = 0;
