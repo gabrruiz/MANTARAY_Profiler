@@ -1,0 +1,71 @@
+#include <Wire.h>
+#include "MS5837.h"
+
+MS5837 sensor;
+
+float depthOffset = 0.0;
+
+void calibrateDepth() {
+  Serial.println("Calibrate!! Have sensor at surface for zeroing");
+
+  float sum = 0.0;
+  const int samples = 50;
+
+  for (int i = 0; i < samples; i++) {
+    sensor.read();
+    sum += sensor.depth();
+    delay(20);
+  }
+
+  depthOffset = sum / samples;
+
+  Serial.print("Depth zero offset: ");
+  Serial.print(depthOffset, 4);
+  Serial.println(" m");
+
+  Serial.println("Calibrated!");
+}
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+
+  if (!sensor.init()) {
+    Serial.println("Uh oh, sensor failed to initialize!");
+    while (1);
+  }
+
+  // Bar02 model
+  sensor.setModel(MS5837::MS5837_02BA);
+
+  // Freshwater density
+  sensor.setFluidDensity(997);
+
+  Serial.println("Depth sensor ready! :)");
+
+  delay(1000);
+
+  calibrateDepth();
+}
+
+void loop() {
+  sensor.read();
+
+  float rawDepth = sensor.depth();
+  float depth = rawDepth - depthOffset;
+
+  float pressure = sensor.pressure();
+  float temperature = sensor.temperature();
+
+  Serial.print("Raw Depth: ");
+  Serial.print(rawDepth, 3);
+  Serial.print(" m | Calibrated Depth: ");
+  Serial.print(depth, 3);
+  Serial.print(" m | Pressure: ");
+  Serial.print(pressure, 2);
+  Serial.print(" mbar | Temp: ");
+  Serial.print(temperature, 2);
+  Serial.println(" C");
+
+  delay(200);
+}
